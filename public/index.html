@@ -1,0 +1,91 @@
+<!doctype html>
+<html>
+<head>
+	<meta name="viewport" content="width=device-width, height=device-height, initial-scale=1">
+	<style>canvas {background-color: black; position:absolute; top:0; left:0; width: 100%; height: 100%; }</style>
+</head>
+<body>
+
+    <canvas id="canvas"></canvas>
+
+<script src="https://unpkg.com/worldwindjs@1.7.0/build/dist/worldwind.min.js"></script>
+<script>
+// Create a WorldWindow for the canvas.
+var wwd = new WorldWind.WorldWindow("canvas");
+
+// Add some image layers to the WorldWindow's globe.
+wwd.addLayer(new WorldWind.BMNGOneImageLayer());
+wwd.addLayer(new WorldWind.BingAerialWithLabelsLayer());
+
+wwd.addLayer(new WorldWind.CoordinatesDisplayLayer(wwd));
+wwd.addLayer(new WorldWind.ViewControlsLayer(wwd));
+
+var placemarkLayer = new WorldWind.RenderableLayer("Placemarks");
+wwd.addLayer(placemarkLayer)
+
+var pinLibrary = WorldWind.configuration.baseUrl + "images/"; // location of the image files
+let placemarkAttributes = new WorldWind.PlacemarkAttributes(null);
+
+// Set up the common placemark attributes.
+placemarkAttributes.imageScale = .1;
+placemarkAttributes.imageOffset = new WorldWind.Offset(
+    WorldWind.OFFSET_FRACTION, 0.3,
+    WorldWind.OFFSET_FRACTION, 0.0);
+placemarkAttributes.imageColor = WorldWind.Color.CYAN;
+placemarkAttributes.labelAttributes.offset = new WorldWind.Offset(
+    WorldWind.OFFSET_FRACTION, 0.5,
+    WorldWind.OFFSET_FRACTION, 1.0);
+placemarkAttributes.labelAttributes.color = WorldWind.Color.YELLOW;
+placemarkAttributes.drawLeaderLine = true;
+placemarkAttributes.leaderLineAttributes.outlineColor = WorldWind.Color.CYAN;
+
+
+// Create and assign the path's attributes.
+var pathAttributes = new WorldWind.ShapeAttributes(null);
+pathAttributes.outlineColor = WorldWind.Color.BLUE;
+
+wwd.goTo(new WorldWind.Position(29.749907, -95.358421, 50000))
+
+function update() {
+    fetch('/data').then(resp=>resp.json()).then(data => {
+        //console.log(data)
+        placemarkLayer.removeAllRenderables()
+        for (item in data) {
+            var pathPositions = data[item].nav.filter(nav=>nav.latitude&&nav.longitude&&nav.altitude).map(nav => new WorldWind.Position(nav.latitude, nav.longitude, nav.altitude*0.3048))
+            if (pathPositions.length) {
+                // Create the path.
+                var path = new WorldWind.Path(pathPositions, null);
+                path.altitudeMode = WorldWind.RELATIVE_TO_GROUND; // The path's altitude stays relative to the terrain's altitude.
+                path.followTerrain = true;
+                //path.extrude = true; // Make it a curtain.
+                path.useSurfaceShapeFor2D = true; // Use a surface shape in 2D mode.
+                path.attributes = pathAttributes;
+
+                        var placemark = new WorldWind.Placemark(pathPositions.at(-1));
+                placemark.label = data[item].callsign
+                placemark.altitudeMode = WorldWind.RELATIVE_TO_GROUND;
+
+                // Create the placemark attributes for this placemark. Note that the attributes differ only by their
+                // image URL.
+                let pa = new WorldWind.PlacemarkAttributes(placemarkAttributes);
+                pa.imageSource = pinLibrary + "white-dot.png";
+                if (!data[item].state) {
+                    pa.imageColor = WorldWind.Color.MEDIUM_GRAY;
+                    pa.leaderLineAttributes.outlineColor = WorldWind.Color.MEDIUM_GRAY;
+                }
+                placemark.attributes = pa;
+
+
+                placemarkLayer.addRenderable(placemark);
+                placemarkLayer.addRenderable(path);
+            }
+        }
+        wwd.redraw();
+    }).finally(()=>setTimeout(update, 1000))
+
+}
+setTimeout(update, 1000)
+</script>
+</body>
+</html>
+

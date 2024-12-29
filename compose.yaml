@@ -1,0 +1,16 @@
+services:
+  frontend:
+    build: .
+    environment:
+      D1090: backend:30003
+    ports:
+      - 3000:3000/tcp
+    depends_on:
+      backend:
+        condition: service_started
+    restart: unless-stopped
+  backend:
+    image: jraviles/dump1090
+    devices:
+      - /dev/bus/usb
+    restart: unless-stopped
